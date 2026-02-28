@@ -1366,10 +1366,42 @@ const AdminBlogView = ({ posts, setPosts }: { posts: BlogPost[], setPosts: React
 
 const BlogEditor = ({ post, onSave, onClose }: { post: BlogPost, onSave: (p: BlogPost) => void, onClose: () => void }) => {
   const [form, setForm] = React.useState<BlogPost>({ ...post });
+  const [coverImageError, setCoverImageError] = React.useState<string | null>(null);
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return alert('Title is required.');
     onSave(form);
+  };
+
+  const handleCoverUrlChange = (url: string) => {
+    setCoverImageError(null);
+    setForm({ ...form, coverImage: url });
+  };
+
+  const handleCoverImageLoad = () => setCoverImageError(null);
+  const handleCoverImageError = () => setCoverImageError('Image failed to load. Check the URL or try uploading a file.');
+
+  const handleCoverFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setCoverImageError('Please select an image file (e.g. JPG, PNG, WebP).');
+      return;
+    }
+    setCoverImageError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setForm(f => ({ ...f, coverImage: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const clearCoverImage = () => {
+    setForm({ ...form, coverImage: '' });
+    setCoverImageError(null);
   };
 
   return (
@@ -1421,21 +1453,50 @@ const BlogEditor = ({ post, onSave, onClose }: { post: BlogPost, onSave: (p: Blo
           </div>
 
           <div className="space-y-2">
-            <label className="text-[9px] font-bold text-white/20 uppercase tracking-widest ml-1">Cover Image URL</label>
-            <input
-              type="text"
-              value={form.coverImage}
-              onChange={e => setForm({ ...form, coverImage: e.target.value })}
-              placeholder="https://images.unsplash.com/..."
-              className="w-full bg-white/5 border border-white/5 p-5 rounded-2xl text-xs font-mono tracking-tight focus:border-white/20 outline-none"
-            />
+            <label className="text-[9px] font-bold text-white/20 uppercase tracking-widest ml-1">Cover Image</label>
+            <div className="flex flex-wrap gap-3 items-center">
+              <input
+                type="text"
+                value={form.coverImage.startsWith('data:') ? '' : form.coverImage}
+                onChange={e => handleCoverUrlChange(e.target.value)}
+                placeholder="Paste image URL (e.g. https://...)"
+                className="flex-1 min-w-[200px] bg-white/5 border border-white/5 p-5 rounded-2xl text-xs font-mono tracking-tight focus:border-white/20 outline-none"
+              />
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverFileUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => coverInputRef.current?.click()}
+                className="px-6 py-4 rounded-2xl border border-white/20 text-[10px] font-bold uppercase tracking-widest text-white/80 hover:bg-white/10 transition-colors"
+              >
+                Upload image
+              </button>
+              {form.coverImage && (
+                <button
+                  type="button"
+                  onClick={clearCoverImage}
+                  className="px-4 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {coverImageError && (
+              <p className="text-[10px] text-amber-400/90 mt-1 ml-1">{coverImageError}</p>
+            )}
             {form.coverImage && (
               <div className="mt-4 w-full aspect-[21/9] bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
                 <img
                   src={form.coverImage}
                   alt="Cover preview"
                   className="w-full h-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  onLoad={handleCoverImageLoad}
+                  onError={handleCoverImageError}
                 />
               </div>
             )}

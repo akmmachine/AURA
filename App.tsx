@@ -18,6 +18,7 @@ import Blog from './views/Blog';
 import { Product, CartItem, User, Order, BlogPost } from './types';
 import { PRODUCTS as INITIAL_PRODUCTS, MOCK_ORDERS as INITIAL_ORDERS, ADMIN_CREDENTIALS } from './constants';
 import { HelpCircle } from 'lucide-react';
+import { api } from './api';
 
 const AppContent: React.FC = () => { // Wrapper component to use useNavigate
   const navigate = useRouteNavigate();
@@ -66,6 +67,12 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [userOrders, setUserOrders] = React.useState<Order[]>([]);
+  const [isLoading, setIsLoading] = React.useState(api.isConfigured());
+  const skipProductsSync = React.useRef(false);
+  const skipOrdersSync = React.useRef(false);
+  const skipBlogSync = React.useRef(false);
+
   const [isLoginMode, setIsLoginMode] = React.useState(true);
   const [authName, setAuthName] = React.useState('');
   const [authEmail, setAuthEmail] = React.useState('');
@@ -90,12 +97,51 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
     }
   }, [isLoginMode]);
 
+  // When user logs in and API is configured, fetch their orders for dashboard
   React.useEffect(() => {
-    localStorage.setItem('aura_products_db', JSON.stringify(products));
+    if (!api.isConfigured() || !user?.email || isAdminLoggedIn) return;
+    api.getOrders(false, user.email).then(setUserOrders).catch(() => setUserOrders([]));
+  }, [user?.email, isAdminLoggedIn]);
+
+  // Fetch initial data from API when configured
+  React.useEffect(() => {
+    if (!api.isConfigured()) return;
+    (async () => {
+      try {
+        const [prods, blog] = await Promise.all([api.getProducts(), api.getBlogPosts()]);
+        const ords = await api.getOrders(true).catch(() => []);
+        const usersRes = await api.getUsers().catch(() => []);
+        skipProductsSync.current = true;
+        skipOrdersSync.current = true;
+        skipBlogSync.current = true;
+        setProducts(prods);
+        setOrders(Array.isArray(ords) ? ords : []);
+        setBlogPosts(blog);
+        setRegisteredUsers(Array.isArray(usersRes) ? usersRes : []);
+      } catch (e) {
+        console.error('API initial load failed', e);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (api.isConfigured()) {
+      if (skipProductsSync.current) { skipProductsSync.current = false; return; }
+      api.setProducts(products).catch(console.error);
+    } else {
+      localStorage.setItem('aura_products_db', JSON.stringify(products));
+    }
   }, [products]);
 
   React.useEffect(() => {
-    localStorage.setItem('aura_orders_db', JSON.stringify(orders));
+    if (api.isConfigured()) {
+      if (skipOrdersSync.current) { skipOrdersSync.current = false; return; }
+      api.setOrders(orders).catch(console.error);
+    } else {
+      localStorage.setItem('aura_orders_db', JSON.stringify(orders));
+    }
   }, [orders]);
 
   // Real-time orders: sync when another tab updates orders (e.g. user places order)
@@ -130,11 +176,16 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
   }, []);
 
   React.useEffect(() => {
-    localStorage.setItem('aura_users_db', JSON.stringify(registeredUsers));
+    if (!api.isConfigured()) localStorage.setItem('aura_users_db', JSON.stringify(registeredUsers));
   }, [registeredUsers]);
 
   React.useEffect(() => {
-    localStorage.setItem('aura_blog_db', JSON.stringify(blogPosts));
+    if (api.isConfigured()) {
+      if (skipBlogSync.current) { skipBlogSync.current = false; return; }
+      api.setBlogPosts(blogPosts).catch(console.error);
+    } else {
+      localStorage.setItem('aura_blog_db', JSON.stringify(blogPosts));
+    }
   }, [blogPosts]);
 
   React.useEffect(() => {
@@ -253,7 +304,7 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
     }));
   };
 
-  const handleOrderComplete = (orderData: { total: number; email: string; paymentMethod: string; shippingCost: number }) => {
+  const handleOrderComplete = async (orderData: { total: number; email: string; paymentMethod: string; shippingCost: number }) => {
     const newOrder: Order = {
       id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
       date: new Date().toISOString().split('T')[0],
@@ -265,7 +316,18 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
       customerEmail: orderData.email || user?.email || 'guest@aura.com'
     };
 
+    if (api.isConfigured()) {
+      try {
+        await api.createOrder(newOrder);
+      } catch (e) {
+        console.error(e);
+        alert('Order could not be saved. Please try again.');
+        return;
+      }
+    }
+
     setOrders(prev => [newOrder, ...prev]);
+    if (user?.email && !isAdminLoggedIn) setUserOrders(prev => [newOrder, ...prev]);
     finalizeOrderStock(cart);
     clearCart();
   };
@@ -274,9 +336,28 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
     setSavedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const handleAuthSubmit = (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+
+    if (api.isConfigured()) {
+      try {
+        if (isLoginMode) {
+          const { user: u } = await api.login(authEmail, authPassword);
+          setUser(u);
+          localStorage.setItem('aura-user', JSON.stringify(u));
+          resetAuthForm();
+        } else {
+          const { user: u } = await api.register(authName, authEmail, authPassword);
+          setUser(u);
+          localStorage.setItem('aura-user', JSON.stringify(u));
+          resetAuthForm();
+        }
+      } catch (err: any) {
+        setAuthError(err?.message || 'Something went wrong.');
+      }
+      return;
+    }
 
     if (isLoginMode) {
       const existingUser = registeredUsers.find(u => u.email === authEmail && (u as any).password === authPassword);
@@ -307,7 +388,6 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
         joinedDate: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
       };
       
-      // We store password separately in the users array for simple mock auth
       (newUser as any).password = authPassword;
 
       setRegisteredUsers(prev => [...prev, newUser]);
@@ -335,19 +415,31 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
   };
 
   // Admin Login/Logout Handlers
-  const handleAdminLogin = () => {
+  const handleAdminLogin = async () => {
+    if (api.isConfigured()) {
+      try {
+        await api.adminLogin(ADMIN_CREDENTIALS.email, ADMIN_CREDENTIALS.password);
+        const ords = await api.getOrders(true).catch(() => []);
+        if (Array.isArray(ords)) {
+          skipOrdersSync.current = true;
+          setOrders(ords);
+        }
+        const usersRes = await api.getUsers().catch(() => []);
+        if (Array.isArray(usersRes)) setRegisteredUsers(usersRes);
+      } catch (err: any) {
+        alert(err?.message || 'Admin login failed');
+        return;
+      }
+    }
     setIsAdminLoggedIn(true);
-    // When admin logs in, set a mock user for the UserDashboard to display
-    setUser({id: 'admin', name: 'Administrator', email: ADMIN_CREDENTIALS.email});
-    // AdminAuth component now handles its own navigation to /dashboard
+    setUser({ id: 'admin', name: 'Administrator', email: ADMIN_CREDENTIALS.email });
   };
 
-  // State-only admin logout
   const handleAdminLogout = () => {
+    if (api.isConfigured()) api.adminLogout();
     setIsAdminLoggedIn(false);
-    setUser(null); // Clear mock admin user
+    setUser(null);
     localStorage.removeItem('aura-user');
-    // No navigation here, UserDashboard will handle the redirect
   };
 
   // State-only function to signal navigation to Admin Console
@@ -356,6 +448,14 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
     navigate('/admin/analytics');
   }
 
+
+  if (api.isConfigured() && isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col relative">
@@ -424,11 +524,11 @@ const AppContent: React.FC = () => { // Wrapper component to use useNavigate
             user ? (
               <UserDashboard 
                 user={user} 
-                orders={orders}
-                onLogout={logout} // State-only logout
+                orders={isAdminLoggedIn ? orders : (api.isConfigured() ? userOrders : orders.filter(o => o.customerEmail === user.email))}
+                onLogout={logout}
                 isAdmin={isAdminLoggedIn} 
-                onAdminLogout={handleAdminLogout} // State-only admin logout
-                navigateToAdminConsole={navigateToAdminConsole} // Now a callback to navigate
+                onAdminLogout={handleAdminLogout}
+                navigateToAdminConsole={navigateToAdminConsole}
               />
             ) : (
               <Navigate to="/auth" />

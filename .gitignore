@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backend data (optional: remove to commit seed state)
+server/data/*.json
+
+# Local env and check doc (optional)
+.env
+CHECK-BACKEND-FRONTEND.md

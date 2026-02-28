@@ -1,6 +1,6 @@
 # AURA — Modern Minimalist Clothing
 
-A minimalist e-commerce frontend for a clothing brand. Built with React, TypeScript, and Vite. All data is stored in the browser (localStorage); no backend or API keys required.
+A minimalist e-commerce frontend for a clothing brand. Built with React, TypeScript, and Vite. Data can be stored in the browser (localStorage) or in an optional Node.js backend.
 
 ## Features
 
@@ -47,8 +47,9 @@ A minimalist e-commerce frontend for a clothing brand. Built with React, TypeScr
 | Command        | Description              |
 |----------------|--------------------------|
 | `npm run dev`  | Start Vite dev server    |
-| `npm run build`| Production build        |
+| `npm run build`| Production build         |
 | `npm run preview` | Preview production build |
+| `cd server && npm run dev` | Start API (port 3001) |
 
 ## Admin login
 
@@ -62,6 +63,7 @@ Use these to log in at `#/admin/login` and access the admin dashboard.
 ## Project structure
 
 ```
+├── api.ts               # API client (used when VITE_API_URL is set)
 ├── App.tsx              # Routes, global state (products, orders, users, blog)
 ├── index.html
 ├── index.tsx            # React entry
@@ -83,7 +85,12 @@ Use these to log in at `#/admin/login` and access the admin dashboard.
 │   ├── UserDashboard.tsx # Orders, collection value, profile, payments
 │   ├── AdminDashboard.tsx # Analytics, collection, orders, inventory, blog, users
 │   └── AdminAuth.tsx
+├── server/              # Optional Node.js API (Express + JSON store)
+│   ├── index.js        # Routes: products, orders, users, auth, admin, blog
+│   ├── store.js        # Read/write JSON files in server/data
+│   └── seedData.js     # Initial products and orders
 └── README.md
 ```
 
-Data is persisted in `localStorage` (e.g. `aura_products_db`, `aura_orders_db`, `aura_blog_db`, `aura-user`, `aura-cart`). Orders and blog posts stay in sync across tabs via the `storage` and `visibilitychange` events.
+**Without backend:** data is in `localStorage`; orders and blog sync across tabs via `storage` and `visibilitychange`.  
+**With backend:** set `VITE_API_URL`; products, orders, users, and blog are stored in `server/data/*.json`. Admin actions and order creation use the API; cart and wishlist remain in localStorage.

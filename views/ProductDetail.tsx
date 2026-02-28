@@ -21,6 +21,15 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
   const [selectedFit, setSelectedFit] = React.useState('');
   const [activeAccordion, setActiveAccordion] = React.useState<string | null>('details');
   const [showSizeGuide, setShowSizeGuide] = React.useState(false);
+  const [addedToCartJustNow, setAddedToCartJustNow] = React.useState(false);
+
+  // Default to first option when product loads so the page is immediately interactive
+  React.useEffect(() => {
+    if (!product) return;
+    setSelectedColor(prev => (product.colors.includes(prev) ? prev : product.colors[0] || ''));
+    setSelectedSize(prev => (product.sizes.includes(prev) ? prev : product.sizes[0] || ''));
+    setSelectedFit(prev => (product.fits?.includes(prev) ? prev : (product.fits?.[0] ?? '')));
+  }, [product?.id]);
 
   const [aiQuery, setAiQuery] = React.useState('');
   const [aiAdvice, setAiAdvice] = React.useState('');
@@ -84,7 +93,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
       )}
 
       {/* Breadcrumbs */}
-      <nav className="flex items-center space-x-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-12">
+      <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-8 sm:mb-12" aria-label="Breadcrumb">
         <Link to="/" className="hover:text-black transition-colors">Home</Link>
         <ChevronRight size={10} />
         <Link to="/shop" className="hover:text-black transition-colors">Collections</Link>
@@ -92,9 +101,9 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
         <span className="text-black">{product.name}</span>
       </nav>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
-        {/* Gallery */}
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 lg:gap-20">
+        {/* Gallery — full width on mobile, ~60% on desktop */}
+        <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-28 lg:self-start">
           <div className="aspect-[3/4] overflow-hidden bg-slate-50 rounded-2xl border border-slate-100 shadow-sm relative group">
             <img src={product.image} alt={product.name} className={`w-full h-full object-cover ${isOutOfStock ? 'grayscale opacity-60' : ''}`} />
             {isOutOfStock && (
@@ -139,7 +148,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">({product.reviews?.length || 0})</span>
               </div>
             </div>
-            <h1 className="text-4xl font-bold tracking-tighter mb-4 uppercase italic leading-tight">{product.name}</h1>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter mb-4 uppercase italic leading-tight">{product.name}</h1>
             <div className="flex items-baseline space-x-6">
               <p className="text-3xl font-light text-slate-900">₹{product.price.toLocaleString('en-IN')}</p>
               {product.stockCount > 0 && product.stockCount < 10 && (
@@ -163,13 +172,14 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
             {/* Colors */}
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest mb-5 block">Palette Selection — {selectedColor || 'Neutral'}</span>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-3 sm:gap-4">
                 {product.colors.map(color => (
                   <button
                     key={color}
+                    type="button"
                     disabled={isOutOfStock}
                     onClick={() => setSelectedColor(color)}
-                    className={`px-6 py-3 border text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${selectedColor === color ? 'bg-black text-white border-black shadow-xl shadow-black/10 scale-105' : 'bg-white border-slate-100 hover:border-black disabled:opacity-20 disabled:cursor-not-allowed'}`}
+                    className={`min-h-[44px] px-5 sm:px-6 py-3 border text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${selectedColor === color ? 'bg-black text-white border-black shadow-xl shadow-black/10 scale-[1.02]' : 'bg-white border-slate-100 hover:border-black disabled:opacity-20 disabled:cursor-not-allowed'}`}
                   >
                     {color}
                   </button>
@@ -177,21 +187,45 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
               </div>
             </div>
 
+            {/* Fits (when product has fits e.g. Classic / Tailored) */}
+            {product.fits && product.fits.length > 0 && (
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest mb-5 block">Fit</span>
+                <div className="flex flex-wrap gap-3">
+                  {product.fits.map(fit => (
+                    <button
+                      key={fit}
+                      disabled={isOutOfStock}
+                      onClick={() => setSelectedFit(fit)}
+                      className={`min-h-[44px] px-5 py-3 border rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${selectedFit === fit ? 'bg-black text-white border-black shadow-lg shadow-black/10' : 'bg-white border-slate-100 hover:border-black disabled:opacity-20 disabled:cursor-not-allowed'}`}
+                    >
+                      {fit}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Sizes */}
             <div>
-              <div className="flex justify-between items-center mb-5">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5">
                 <span className="text-[10px] font-bold uppercase tracking-widest block">Dimensional Fit</span>
-                <button onClick={() => setShowSizeGuide(true)} className="flex items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-black transition-colors underline-offset-4 underline decoration-slate-100">
-                  <Ruler size={14} className="mr-2" /> Measurement Guide
+                <button
+                  type="button"
+                  onClick={() => setShowSizeGuide(true)}
+                  className="flex items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-black transition-colors underline-offset-4 underline decoration-slate-100 w-fit focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 rounded"
+                >
+                  <Ruler size={14} className="mr-2 shrink-0" aria-hidden /> Measurement Guide
                 </button>
               </div>
               <div className="flex flex-wrap gap-3">
                 {product.sizes.map(size => (
                   <button
                     key={size}
+                    type="button"
                     disabled={isOutOfStock}
                     onClick={() => setSelectedSize(size)}
-                    className={`w-14 h-14 border rounded-xl flex items-center justify-center text-[10px] font-bold uppercase tracking-widest transition-all ${selectedSize === size ? 'bg-black text-white border-black shadow-xl shadow-black/10 scale-105' : 'bg-white border-slate-100 hover:border-black disabled:opacity-20 disabled:cursor-not-allowed'}`}
+                    className={`min-w-[56px] min-h-[56px] sm:w-14 sm:h-14 border rounded-xl flex items-center justify-center text-[10px] font-bold uppercase tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${selectedSize === size ? 'bg-black text-white border-black shadow-xl shadow-black/10 scale-[1.02]' : 'bg-white border-slate-100 hover:border-black disabled:opacity-20 disabled:cursor-not-allowed'}`}
                   >
                     {size}
                   </button>
@@ -200,38 +234,74 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ onAddToCart, onToggleSave
             </div>
 
             <div className="flex flex-col space-y-6 pt-6">
-              <div className="flex gap-4">
-                <button 
-                  disabled={isOutOfStock || !selectedSize || !selectedColor || (product.fits && !selectedFit)}
-                  onClick={() => onAddToCart(product, selectedSize, selectedColor, selectedFit)}
-                  className="flex-1 bg-black text-white py-6 font-bold tracking-[0.4em] uppercase text-xs hover:opacity-90 disabled:opacity-50 transition-all shadow-2xl shadow-black/20 rounded-2xl active:scale-[0.98]"
+              <div className="flex gap-3 sm:gap-4">
+                <button
+                  type="button"
+                  disabled={isOutOfStock || !selectedSize || !selectedColor || (product.fits?.length ? !selectedFit : false)}
+                  onClick={() => {
+                    if (isOutOfStock || !selectedSize || !selectedColor) return;
+                    if (product.fits?.length && !selectedFit) return;
+                    onAddToCart(product, selectedSize, selectedColor, selectedFit || undefined);
+                    setAddedToCartJustNow(true);
+                    window.setTimeout(() => setAddedToCartJustNow(false), 2000);
+                  }}
+                  className="flex-1 min-h-[52px] sm:py-6 bg-black text-white py-4 sm:py-6 font-bold tracking-[0.4em] uppercase text-xs hover:opacity-90 disabled:opacity-50 transition-all shadow-2xl shadow-black/20 rounded-2xl active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                 >
-                  {isOutOfStock ? 'Sold Out' : 'Reserve Item'}
+                  {addedToCartJustNow ? 'Added to cart' : isOutOfStock ? 'Sold Out' : 'Reserve Item'}
                 </button>
-                <button 
+                <button
+                  type="button"
                   onClick={() => onToggleSaved(product.id)}
-                  className={`w-16 rounded-2xl flex items-center justify-center border transition-all ${isSaved ? 'border-rose-100 bg-rose-50 text-rose-500 shadow-inner' : 'border-slate-100 hover:border-black bg-white shadow-sm'}`}
+                  aria-label={isSaved ? 'Remove from wishlist' : 'Add to wishlist'}
+                  className={`min-w-[52px] min-h-[52px] w-14 sm:w-16 rounded-2xl flex items-center justify-center border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${isSaved ? 'border-rose-100 bg-rose-50 text-rose-500 shadow-inner' : 'border-slate-100 hover:border-black bg-white shadow-sm'}`}
                 >
-                  <Heart size={22} fill={isSaved ? "currentColor" : "none"} />
+                  <Heart size={22} fill={isSaved ? 'currentColor' : 'none'} aria-hidden />
                 </button>
               </div>
               
-              <div className="flex items-center justify-center space-x-10 py-6 border-y border-slate-50 bg-slate-50/30 rounded-2xl">
-                 <div className="flex flex-col items-center space-y-2">
-                    <Truck size={14} className="text-slate-400" />
-                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest text-center">Prompt <br /> Shipping</span>
+              <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 py-4 sm:py-6 border-y border-slate-50 bg-slate-50/30 rounded-2xl px-4">
+                 <div className="flex flex-col items-center space-y-1.5 sm:space-y-2 min-w-[70px] sm:min-w-0">
+                    <Truck size={14} className="text-slate-400 shrink-0" aria-hidden />
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest text-center leading-tight">Prompt Shipping</span>
                  </div>
-                 <div className="flex flex-col items-center space-y-2">
-                    <RefreshCcw size={14} className="text-slate-400" />
-                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest text-center">14-Day <br /> Exchange</span>
+                 <div className="flex flex-col items-center space-y-1.5 sm:space-y-2 min-w-[70px] sm:min-w-0">
+                    <RefreshCcw size={14} className="text-slate-400 shrink-0" aria-hidden />
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest text-center leading-tight">14-Day Exchange</span>
                  </div>
-                 <div className="flex flex-col items-center space-y-2">
-                    <ShieldCheck size={14} className="text-slate-400" />
-                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest text-center">Verified <br /> Transaction</span>
+                 <div className="flex flex-col items-center space-y-1.5 sm:space-y-2 min-w-[70px] sm:min-w-0">
+                    <ShieldCheck size={14} className="text-slate-400 shrink-0" aria-hidden />
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest text-center leading-tight">Verified Transaction</span>
                  </div>
               </div>
             </div>
           </div>
+
+          {/* Sticky CTA on mobile — visible when main CTA scrolls out of view */}
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-100 p-4 safe-area-pb flex gap-3 items-center shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+            <button
+              type="button"
+              disabled={isOutOfStock || !selectedSize || !selectedColor || (product.fits?.length ? !selectedFit : false)}
+              onClick={() => {
+                if (isOutOfStock || !selectedSize || !selectedColor) return;
+                if (product.fits?.length && !selectedFit) return;
+                onAddToCart(product, selectedSize, selectedColor, selectedFit || undefined);
+                setAddedToCartJustNow(true);
+                window.setTimeout(() => setAddedToCartJustNow(false), 2000);
+              }}
+              className="flex-1 min-h-[48px] bg-black text-white font-bold tracking-[0.3em] uppercase text-[10px] rounded-xl active:scale-[0.98] disabled:opacity-50"
+            >
+              {addedToCartJustNow ? 'Added' : isOutOfStock ? 'Sold Out' : 'Reserve Item'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleSaved(product.id)}
+              aria-label={isSaved ? 'Remove from wishlist' : 'Add to wishlist'}
+              className={`min-w-[48px] min-h-[48px] rounded-xl flex items-center justify-center border ${isSaved ? 'border-rose-100 bg-rose-50 text-rose-500' : 'border-slate-200 bg-white'}`}
+            >
+              <Heart size={20} fill={isSaved ? 'currentColor' : 'none'} />
+            </button>
+          </div>
+          <div className="h-24 lg:hidden" aria-hidden />
 
           {/* Accordions */}
           <div className="border-t border-slate-100 divide-y divide-slate-100">

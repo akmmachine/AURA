@@ -1,13 +1,18 @@
-# Render Blueprint — deploy as Static Site
+# Render Blueprint — static frontend + backend API
 # Docs: https://render.com/docs/blueprint-spec
 services:
+  # Backend API (this gives you https://aura-api.onrender.com)
+  - type: web
+    name: aura-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+
+  # Frontend (static site)
   - type: web
     name: aura
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist
-    # Optional: custom domain, redirects, headers
-    # routes:
-    #   - type: rewrite
-    #     source: /*
-    #     destination: /index.html
